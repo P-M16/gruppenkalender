@@ -429,13 +429,15 @@ if st.session_state.selected_date:
     /* Alle secondary Buttons transparent: 👍 und 🗑️ */
     div.stButton > button[kind="secondary"] {
         background: transparent !important;
-        border: none !important;
+        border: 1px solid #d8d8d8 !important;
+        border-radius: 6px !important;
         color: inherit !important;
         box-shadow: none !important;
     }
 
     div.stButton > button[kind="secondary"]:hover {
         background: rgba(0, 0, 0, 0.05) !important;
+        border-color: #bfbfbf !important;
     }
 
     /* Nur Austragen-Button rot */
