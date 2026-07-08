@@ -402,34 +402,50 @@ if st.session_state.selected_date:
     
     st.markdown("""
     <style>
-    /* Eintragen-Button grün */
+
+    /* ---------------- Eintragen (grün) ---------------- */
+
     div.stButton > button[kind="primary"] {
         background-color: #9FD3B0 !important;
         border: 1px solid #7DBE93 !important;
         color: #1F4D36 !important;
+        box-shadow: none !important;
+        transition: all 0.2s ease;
     }
 
-    /* Alle normalen secondary Buttons neutral/transparent */
+    div.stButton > button[kind="primary"]:hover {
+        background-color: #8BC8A0 !important;
+        border-color: #6DB686 !important;
+        color: #173C2A !important;
+    }
+
+    div.stButton > button[kind="primary"]:active {
+        background-color: #79B98F !important;
+    }
+
+
+    /* ---------------- Austragen (rot) ---------------- */
+
+    /* Alle secondary Buttons transparent: 👍 und 🗑️ */
     div.stButton > button[kind="secondary"] {
         background: transparent !important;
-        border: 1px solid #d6d6d6 !important;
-        color: #3f5449 !important;
+        border: none !important;
+        color: inherit !important;
         box-shadow: none !important;
     }
 
     div.stButton > button[kind="secondary"]:hover {
-        background-color: #f4f6f5 !important;
-        border-color: #c8c8c8 !important;
+        background: rgba(0, 0, 0, 0.05) !important;
     }
 
     /* Nur Austragen-Button rot */
-    .austragen-button + div.stButton > button[kind="secondary"] {
+    .st-key-austragen button {
         background-color: #F2B6B6 !important;
         border: 1px solid #E59C9C !important;
         color: #6B2C2C !important;
     }
 
-    .austragen-button + div.stButton > button[kind="secondary"]:hover {
+    .st-key-austragen button:hover {
         background-color: #ECA3A3 !important;
         border-color: #DD8787 !important;
         color: #572121 !important;
@@ -438,26 +454,11 @@ if st.session_state.selected_date:
     """, unsafe_allow_html=True)
     
     if is_registered:
-        st.markdown('<div class="austragen-button">', unsafe_allow_html=True)
-
-        if st.button(
-            "Eingetragen – hier klicken zum Austragen",
-            use_container_width=True,
-            type="secondary",
-            key="austragen_button",
-        ):
+        if st.button("Eingetragen – hier klicken zum Austragen", use_container_width=True, type="secondary", key="austragen"):
             db.delete_entry(client, int(my_current_entry.iloc[0]["id"]))
             st.rerun()
-
-        st.markdown("</div>", unsafe_allow_html=True)
-
     else:
-        if st.button(
-            "Ich habe an diesem Tag Zeit",
-            use_container_width=True,
-            type="primary",
-            key="eintragen_button",
-        ):
+        if st.button("Ich habe an diesem Tag Zeit", use_container_width=True, type="primary"):
             db.add_entry(client, sel, auth["user_id"], auth["name"])
             st.rerun()
 
