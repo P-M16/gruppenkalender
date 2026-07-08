@@ -1,11 +1,19 @@
 import os
 from dotenv import load_dotenv
 from supabase import create_client, Client
+import streamlit as st
 
+# Lokal .env laden
 load_dotenv()
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+# Erst Streamlit Secrets verwenden, falls vorhanden.
+# Ansonsten lokal auf .env zurückfallen.
+SUPABASE_URL = st.secrets.get("SUPABASE_URL", os.getenv("SUPABASE_URL"))
+SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", os.getenv("SUPABASE_KEY"))
+
+#load_dotenv()
+#SUPABASE_URL = os.getenv("SUPABASE_URL")
+#SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 
 def _new_client() -> Client:
