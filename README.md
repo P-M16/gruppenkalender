@@ -4,11 +4,6 @@ Eine Streamlit-App für eine Gruppe: einloggen, sehen wer wann Zeit hat, sich
 selbst eintragen und Aktivitäten vorschlagen – inklusive Abstimmung, Wetter-
 vorschau und dauerhafter Anmeldung.
 
-Dieses Dokument richtet sich in erster Linie an **dich als Betreiber:in** der
-App (Einrichtung, Hosting). Der Abschnitt ["Für deine Freunde/Nutzer:innen"](#für-deine-freundenutzerinnen)
-ganz unten ist bewusst kurz gehalten – den kannst du ihnen bei Bedarf einfach
-weiterleiten.
-
 ## Funktionen im Überblick
 
 - **Login mit Supabase Auth** (E-Mail + Passwort). Einmal eingeloggt, bleibt
