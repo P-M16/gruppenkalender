@@ -43,3 +43,19 @@ def get_authenticated_client(access_token: str, refresh_token: str) -> Client:
     client = _new_client()
     client.auth.set_session(access_token, refresh_token)
     return client
+
+
+def refresh_session(refresh_token: str):
+    """Tauscht einen gespeicherten Refresh-Token gegen eine frische Session
+    (neuer Access-Token + neuer, rotierter Refresh-Token) ein. Damit lässt
+    sich eine Anmeldung wiederherstellen, ohne E-Mail/Passwort erneut
+    abzufragen – solange der Refresh-Token noch gültig ist."""
+    client = _new_client()
+    return client.auth.refresh_session(refresh_token)
+
+
+def sign_out(access_token: str, refresh_token: str):
+    """Beendet die Session serverseitig bei Supabase (der Refresh-Token wird
+    dabei ungültig gemacht, nicht nur lokal vergessen)."""
+    client = get_authenticated_client(access_token, refresh_token)
+    client.auth.sign_out()

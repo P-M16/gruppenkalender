@@ -1,13 +1,20 @@
 import streamlit as st
-import calendar
+#import calendar
 from datetime import date, datetime, time as dt_time, timedelta
 import pandas as pd
 from streamlit_calendar import calendar as st_calendar
+from streamlit_cookies_controller import CookieController
 
-from auth_service import sign_up, sign_in, get_authenticated_client
+from auth_service import sign_up, sign_in, get_authenticated_client, refresh_session, sign_out
 import database as db
+import weather_service as weather
 
 st.set_page_config(page_title="Gruppenkalender", page_icon="📅", layout="wide")
+
+COOKIE_NAME = "gk_refresh_token"
+COOKIE_MAX_AGE_SECONDS = 30 * 24 * 60 * 60  # 30 Tage
+
+controller = CookieController()
 
 MONTH_NAMES_DE = [
     "", "Januar", "Februar", "März", "April", "Mai", "Juni",
@@ -26,9 +33,55 @@ if "auth" not in st.session_state:
     st.session_state.auth = None  # dict mit access_token, refresh_token, user_id, name, email
 
 
+def build_auth_dict(user, session) -> dict:
+    """Baut das einheitliche auth-Dict aus einer Supabase User/Session-Antwort."""
+    full_name = (user.user_metadata or {}).get("full_name") or user.email.split("@")[0]
+    return {
+        "access_token": session.access_token,
+        "refresh_token": session.refresh_token,
+        "user_id": user.id,
+        "name": full_name,
+        "email": user.email,
+    }
+
+
+def persist_refresh_token(refresh_token: str):
+    """Speichert den Refresh-Token als Browser-Cookie, damit die Anmeldung
+    auch nach Schließen/Neuöffnen des Browsers erhalten bleibt."""
+    controller.set(
+        COOKIE_NAME,
+        refresh_token,
+        max_age=COOKIE_MAX_AGE_SECONDS,
+        secure=True,
+        same_site="lax",
+    )
+
+
+def clear_persisted_session():
+    try:
+        controller.remove(COOKIE_NAME)
+    except Exception:
+        pass
+
+
+# ---------- Session beim Start wiederherstellen (falls Cookie vorhanden) ----------
+if st.session_state.auth is None:
+    stored_refresh_token = controller.get(COOKIE_NAME)
+    if stored_refresh_token:
+        try:
+            result = refresh_session(stored_refresh_token)
+            st.session_state.auth = build_auth_dict(result.user, result.session)
+            # Supabase rotiert den Refresh-Token bei jeder Nutzung -> Cookie mit
+            # dem NEUEN Token überschreiben, sonst schlägt der nächste Refresh fehl.
+            persist_refresh_token(result.session.refresh_token)
+        except Exception:
+            # Token abgelaufen/ungültig/widerrufen -> Cookie verwerfen, normal einloggen lassen
+            clear_persisted_session()
+
+
 # ---------- Login / Registrierung ----------
 def render_login():
-    st.title("📅 Gruppenkalender")
+    st.title("Gruppenkalender")
     st.caption("Melde dich an, um zu sehen wer wann Zeit hat und dich selbst einzutragen.")
 
     tab_login, tab_signup = st.tabs(["Login", "Registrieren"])
@@ -41,16 +94,8 @@ def render_login():
             if submitted:
                 try:
                     result = sign_in(email, password)
-                    user = result.user
-                    session = result.session
-                    full_name = (user.user_metadata or {}).get("full_name") or email.split("@")[0]
-                    st.session_state.auth = {
-                        "access_token": session.access_token,
-                        "refresh_token": session.refresh_token,
-                        "user_id": user.id,
-                        "name": full_name,
-                        "email": email,
-                    }
+                    st.session_state.auth = build_auth_dict(result.user, result.session)
+                    persist_refresh_token(result.session.refresh_token)
                     st.rerun()
                 except Exception as e:
                     st.error(f"Login fehlgeschlagen: {e}")
@@ -89,6 +134,7 @@ try:
     client = get_authenticated_client(auth["access_token"], auth["refresh_token"])
 except Exception as e:
     st.error(f"Sitzung ungültig, bitte erneut einloggen: {e}")
+    clear_persisted_session()
     st.session_state.auth = None
     st.stop()
 
@@ -96,11 +142,16 @@ except Exception as e:
 with st.sidebar:
     st.write(f"👤 Angemeldet als **{auth['name']}**")
     if st.button("Logout"):
+        try:
+            sign_out(auth["access_token"], auth["refresh_token"])
+        except Exception:
+            pass  # Session war evtl. schon abgelaufen - trotzdem lokal ausloggen
+        clear_persisted_session()
         st.session_state.auth = None
         st.session_state.selected_date = None
         st.rerun()
 
-st.title("📅 Gruppenkalender")
+st.title("Gruppenkalender")
 st.caption("Klick auf einen Tag, um Details zu sehen. Mit dem Button unten trägst du dich ein.")
 
 # ---------- Daten laden ----------
@@ -134,6 +185,18 @@ def color_for_count(count: int, max_count: int) -> str:
     lightness = 92 - 32 * ratio  # 92% (sehr hell) bis 60% (kräftiger)
     return f"hsl(150, 40%, {lightness:.0f}%)"
 
+
+# ---------- Wettervorhersage laden ----------
+@st.cache_data(ttl=1800)
+def load_weather_forecast(city: str):
+    return weather.get_daily_forecast(city)
+
+
+try:
+    weather_forecast = load_weather_forecast(weather.WEATHER_CITY)
+except Exception:
+    weather_forecast = {}
+    st.sidebar.warning(f"Wetterdaten für '{weather.WEATHER_CITY}' konnten nicht geladen werden.")
 
 # ---------- Kalender ----------
 today_str = date.today().isoformat()
@@ -183,6 +246,21 @@ for date_str, count in counts.items():
         }
     )
 
+# Wettervorhersage als eigene, dezente Zeile pro Tag (nur für die nächsten ~16 Tage verfügbar)
+for date_str, day_weather in weather_forecast.items():
+    icon = weather.weather_icon(day_weather["code"])
+    label = f"{icon} {round(day_weather['tmax'])}°/{round(day_weather['tmin'])}°"
+    events.append(
+        {
+            "title": label,
+            "start": date_str,
+            "allDay": True,
+            "backgroundColor": "transparent",
+            "borderColor": "transparent",
+            "textColor": "#6b7f8c",
+        }
+    )
+
 # Aktivitätsvorschläge zusätzlich als eigene Zeilen unter der Personenzahl anzeigen
 if not df_activities.empty:
     all_activity_ids = df_activities["id"].astype(int).tolist()
@@ -229,11 +307,62 @@ calendar_options = {
     "height": 650,
     "fixedWeekCount": False,
     "firstDay": 1,
+    "timeZone": "UTC",
 }
+
+calendar_custom_css = """
+.fc .fc-toolbar-title {
+    color: #3f5449;
+    font-weight: 600;
+}
+.fc .fc-button-primary {
+    background-color: #eaf3ee;
+    border-color: #d3e5da;
+    color: #3f5449;
+    box-shadow: none;
+}
+.fc .fc-button-primary:hover {
+    background-color: #d3e5da;
+    border-color: #b9d4c4;
+    color: #1f3d2c;
+}
+.fc .fc-button-primary:disabled {
+    background-color: #f4f6f5;
+    border-color: #e5e9e7;
+    color: #a3aca7;
+}
+.fc .fc-button-primary:not(:disabled).fc-button-active,
+.fc .fc-button-primary:not(:disabled):active {
+    background-color: #bfe3cf;
+    border-color: #8fc9a8;
+    color: #1f3d2c;
+}
+.fc .fc-button-primary:focus,
+.fc .fc-button-primary:not(:disabled).fc-button-active:focus {
+    box-shadow: 0 0 0 0.1rem rgba(143, 201, 168, 0.4);
+}
+
+.fc .fc-daygrid-day:hover {
+    outline: 2px solid #8fc9a8;
+    outline-offset: -2px;
+    cursor: pointer;
+}
+.fc .fc-day-today {
+    background-color: transparent !important;
+    outline: 2px solid
+}
+.fc .fc-day-today .fc-daygrid-day-number {
+    font-weight: 700;
+}
+.fc .fc-col-header-cell.fc-day-today {
+    background-color: #f2f2f2 !important;
+}
+"""
 
 cal_result = st_calendar(
     events=events,
     options=calendar_options,
+    custom_css=calendar_custom_css,
     key="group_calendar",
 )
 
@@ -256,6 +385,13 @@ if st.session_state.selected_date:
     sel_display = datetime.strptime(sel, "%Y-%m-%d").strftime("%A, %d.%m.%Y")
     st.subheader(sel_display)
 
+    if sel in weather_forecast:
+        w = weather_forecast[sel]
+        st.caption(
+            f"{weather.weather_icon(w['code'])} {weather.weather_description(w['code'])} · "
+            f"{round(w['tmax'])}° / {round(w['tmin'])}°"
+        )
+
     day_entries = df[df["date"] == sel] if not df.empty else pd.DataFrame()
     my_current_entry = (
         day_entries[day_entries["user_id"] == auth["user_id"]]
@@ -263,7 +399,54 @@ if st.session_state.selected_date:
         else pd.DataFrame()
     )
     is_registered = not my_current_entry.empty
+    
+    st.markdown("""
+    <style>
 
+    /* ---------------- Eintragen (grün) ---------------- */
+
+    div.stButton > button[kind="primary"] {
+        background-color: #9FD3B0 !important;
+        border: 1px solid #7DBE93 !important;
+        color: #1F4D36 !important;
+        box-shadow: none !important;
+        transition: all 0.2s ease;
+    }
+
+    div.stButton > button[kind="primary"]:hover {
+        background-color: #8BC8A0 !important;
+        border-color: #6DB686 !important;
+        color: #173C2A !important;
+    }
+
+    div.stButton > button[kind="primary"]:active {
+        background-color: #79B98F !important;
+    }
+
+
+    /* ---------------- Austragen (rot) ---------------- */
+
+    div.stButton > button[kind="secondary"] {
+        background-color: #F2B6B6 !important;
+        border: 1px solid #E59C9C !important;
+        color: #6B2C2C !important;
+        box-shadow: none !important;
+        transition: all 0.2s ease;
+    }
+
+    div.stButton > button[kind="secondary"]:hover {
+        background-color: #ECA3A3 !important;
+        border-color: #DD8787 !important;
+        color: #572121 !important;
+    }
+
+    div.stButton > button[kind="secondary"]:active {
+        background-color: #E29191 !important;
+    }
+
+    </style>
+    """, unsafe_allow_html=True)
+    
     if is_registered:
         if st.button("Eingetragen – hier klicken zum Austragen", use_container_width=True, type="secondary"):
             db.delete_entry(client, int(my_current_entry.iloc[0]["id"]))
@@ -351,5 +534,5 @@ if st.session_state.selected_date:
                 st.rerun()
             else:
                 st.warning("Bitte einen Vorschlag eingeben.")
-else:
-    st.info("Klicke auf einen Tag im Kalender, um Details zu sehen.")
+#else:
+    #st.info("Klicke auf einen Tag im Kalender, um Details zu sehen.")
