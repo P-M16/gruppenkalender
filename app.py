@@ -65,8 +65,24 @@ def clear_persisted_session():
 
 
 # ---------- Session beim Start wiederherstellen (falls Cookie vorhanden) ----------
+# Cookies werden asynchron vom Browser an Streamlit übermittelt. Beim
+# allerersten Render einer neuen Browser-Session ist controller.getAll()
+# noch None (nicht: ein leeres Dict) - das bedeutet "noch nicht geladen",
+# NICHT "kein Cookie vorhanden". Bricht man hier zu früh ab, denkt die App
+# fälschlich, man sei nicht eingeloggt, obwohl das Cookie längst da ist.
+if "cookies_ready" not in st.session_state:
+    st.session_state.cookies_ready = False
+
+all_cookies = controller.getAll()
+if all_cookies is not None:
+    st.session_state.cookies_ready = True
+
+if not st.session_state.cookies_ready:
+    st.info("Lädt …")
+    st.stop()
+
 if st.session_state.auth is None:
-    stored_refresh_token = controller.get(COOKIE_NAME)
+    stored_refresh_token = all_cookies.get(COOKIE_NAME) if all_cookies else None
     if stored_refresh_token:
         try:
             result = refresh_session(stored_refresh_token)
