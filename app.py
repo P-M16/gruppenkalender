@@ -1,4 +1,5 @@
 import streamlit as st
+import time
 #import calendar
 from datetime import date, datetime, time as dt_time, timedelta
 import pandas as pd
@@ -112,6 +113,10 @@ def render_login():
                     result = sign_in(email, password)
                     st.session_state.auth = build_auth_dict(result.user, result.session)
                     persist_refresh_token(result.session.refresh_token)
+                    # Kurz warten, damit der Browser das Cookie wirklich setzt,
+                    # bevor rerun() die Verbindung neu aufbaut und den Befehl
+                    # dafür sonst eventuell "abschneidet".
+                    time.sleep(0.6)
                     st.rerun()
                 except Exception as e:
                     st.error(f"Login fehlgeschlagen: {e}")
@@ -165,6 +170,7 @@ with st.sidebar:
         clear_persisted_session()
         st.session_state.auth = None
         st.session_state.selected_date = None
+        time.sleep(0.4)
         st.rerun()
 
 st.title("Gruppenkalender")
