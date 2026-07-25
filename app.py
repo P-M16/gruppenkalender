@@ -517,7 +517,7 @@ if st.session_state.selected_date:
             st.rerun()
     else:
         if st.button(
-            "Ich habe fix keine Zeit :(",
+            "Ich habe fix keine Zeit 😕",
             use_container_width=True,
             type="secondary",
             key="fix_keine_zeit",
@@ -527,10 +527,6 @@ if st.session_state.selected_date:
                 db.delete_entry(client, int(my_current_entry.iloc[0]["id"]))
             db.add_unavailability(client, sel, auth["user_id"], auth["name"])
             st.rerun()
-
-    if not day_unavailable.empty:
-        names = ", ".join(day_unavailable["name"].tolist())
-        st.caption(f"Haben fix keine Zeit:( {names}")
 
     st.write("")
 
@@ -545,6 +541,13 @@ if st.session_state.selected_date:
                 st.write(row["name"])
         else:
             st.caption("Noch niemand eingetragen.")
+
+        st.markdown("**Wer hat fix keine Zeit**")
+        if not day_unavailable.empty:
+            for _, row in day_unavailable.iterrows():
+                st.write(row["name"])
+        else:
+            st.caption("Noch niemand markiert.")
 
     with col_activities:
         st.markdown("**Aktivitäten**")
