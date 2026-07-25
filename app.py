@@ -542,7 +542,7 @@ if st.session_state.selected_date:
         else:
             st.caption("Noch niemand eingetragen.")
 
-        st.markdown("**Wer hat fix keine Zeit**")
+        st.markdown("**Wer hat fix keine Zeit :(**")
         if not day_unavailable.empty:
             for _, row in day_unavailable.iterrows():
                 st.write(row["name"])
