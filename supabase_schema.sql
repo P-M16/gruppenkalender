@@ -90,3 +90,29 @@ create policy "Users can vote" on activity_votes
 create policy "Users can remove own vote" on activity_votes
   for delete
   using (auth.uid() = voter_id);
+
+
+-- ---------- "Fix keine Zeit" Markierung ----------
+
+create table if not exists unavailability (
+  id bigint generated always as identity primary key,
+  date date not null,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  name text not null,
+  created_at timestamp with time zone default now(),
+  unique (date, user_id)  -- pro Nutzer:in nur eine Markierung pro Tag
+);
+
+alter table unavailability enable row level security;
+
+create policy "Authenticated users can read unavailability" on unavailability
+  for select
+  using (auth.role() = 'authenticated');
+
+create policy "Users can insert own unavailability" on unavailability
+  for insert
+  with check (auth.uid() = user_id);
+
+create policy "Users can delete own unavailability" on unavailability
+  for delete
+  using (auth.uid() = user_id);

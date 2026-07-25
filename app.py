@@ -158,6 +158,7 @@ st.caption("Klick auf einen Tag, um Details zu sehen. Mit dem Button unten träg
 try:
     entries = db.get_all_entries(client)
     activity_entries = db.get_all_activities(client)
+    unavailable_entries = db.get_all_unavailability(client)
 except Exception as e:
     st.error(f"Verbindung zur Datenbank fehlgeschlagen: {e}")
     st.stop()
@@ -171,6 +172,12 @@ df_activities = pd.DataFrame(activity_entries) if activity_entries else pd.DataF
 )
 if not df_activities.empty:
     df_activities["date"] = df_activities["date"].astype(str)
+
+df_unavailable = pd.DataFrame(unavailable_entries) if unavailable_entries else pd.DataFrame(
+    columns=["id", "date", "user_id", "name"]
+)
+if not df_unavailable.empty:
+    df_unavailable["date"] = df_unavailable["date"].astype(str)
 
 counts = df.groupby("date").size().to_dict() if not df.empty else {}
 max_count = max(counts.values()) if counts else 1
@@ -399,7 +406,15 @@ if st.session_state.selected_date:
         else pd.DataFrame()
     )
     is_registered = not my_current_entry.empty
-    
+
+    day_unavailable = df_unavailable[df_unavailable["date"] == sel] if not df_unavailable.empty else pd.DataFrame()
+    my_current_unavailable = (
+        day_unavailable[day_unavailable["user_id"] == auth["user_id"]]
+        if not day_unavailable.empty
+        else pd.DataFrame()
+    )
+    is_unavailable = not my_current_unavailable.empty
+
     st.markdown("""
     <style>
 
@@ -452,17 +467,70 @@ if st.session_state.selected_date:
         border-color: #DD8787 !important;
         color: #572121 !important;
     }
+
+    /* Fix-keine-Zeit-Button (grau, zurückhaltend) */
+    .st-key-fix_keine_zeit button {
+        background-color: #e2e2e2 !important;
+        border: 1px solid #cfcfcf !important;
+        color: #4a4a4a !important;
+    }
+
+    .st-key-fix_keine_zeit button:hover {
+        background-color: #d5d5d5 !important;
+        border-color: #bdbdbd !important;
+    }
+
+    /* Wenn schon als 'fix keine Zeit' markiert: etwas dunkler zur Bestätigung */
+    .st-key-fix_keine_zeit_aktiv button {
+        background-color: #cfcfcf !important;
+        border: 1px solid #b8b8b8 !important;
+        color: #333333 !important;
+    }
+
+    .st-key-fix_keine_zeit_aktiv button:hover {
+        background-color: #c2c2c2 !important;
+        border-color: #a8a8a8 !important;
+    }
     </style>
     """, unsafe_allow_html=True)
-    
+
     if is_registered:
         if st.button("Eingetragen – hier klicken zum Austragen", use_container_width=True, type="secondary", key="austragen"):
             db.delete_entry(client, int(my_current_entry.iloc[0]["id"]))
             st.rerun()
     else:
         if st.button("Ich habe an diesem Tag Zeit", use_container_width=True, type="primary"):
+            # Falls zuvor als "fix keine Zeit" markiert, diese Markierung entfernen
+            if is_unavailable:
+                db.delete_unavailability(client, int(my_current_unavailable.iloc[0]["id"]))
             db.add_entry(client, sel, auth["user_id"], auth["name"])
             st.rerun()
+
+    if is_unavailable:
+        if st.button(
+            "Fix keine Zeit – hier klicken zum Zurücknehmen",
+            use_container_width=True,
+            type="secondary",
+            key="fix_keine_zeit_aktiv",
+        ):
+            db.delete_unavailability(client, int(my_current_unavailable.iloc[0]["id"]))
+            st.rerun()
+    else:
+        if st.button(
+            "Ich habe fix keine Zeit :(",
+            use_container_width=True,
+            type="secondary",
+            key="fix_keine_zeit",
+        ):
+            # Falls zuvor als verfügbar eingetragen, diesen Eintrag entfernen
+            if is_registered:
+                db.delete_entry(client, int(my_current_entry.iloc[0]["id"]))
+            db.add_unavailability(client, sel, auth["user_id"], auth["name"])
+            st.rerun()
+
+    if not day_unavailable.empty:
+        names = ", ".join(day_unavailable["name"].tolist())
+        st.caption(f"Haben fix keine Zeit:( {names}")
 
     st.write("")
 

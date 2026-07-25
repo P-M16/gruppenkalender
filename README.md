@@ -117,7 +117,7 @@ statt der FullCalendar-Standardfarben. Die Personenzahl-Hintergrundfläche
 
 ## Für Freunde/Nutzer:innen
 
-1. Link öffnen, unter "Registrieren" Name, E-Mail und Passwort eingeben.
+1. Link: https://gruppenkalender.streamlit.app/ öffnen, unter "Registrieren" Name, E-Mail und Passwort eingeben & registrieren. (Vorname reicht)
 2. Danach einloggen – man bleibt angemeldet, auch nach Schließen des Browsers.
 3. Auf einen Tag im Kalender klicken, um zu sehen wer Zeit hat und was
    geplant ist.

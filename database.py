@@ -100,6 +100,24 @@ def add_vote(client, activity_id: int, voter_id: str):
     ).execute()
 
 
+def get_all_unavailability(client):
+    """Holt alle 'fix keine Zeit'-Markierungen, unabhängig vom Monat."""
+    response = client.table("unavailability").select("*").order("date").execute()
+    return response.data
+
+
+def add_unavailability(client, entry_date: str, user_id: str, name: str):
+    """Markiert den eingeloggten Nutzer als 'fix keine Zeit' an diesem Tag."""
+    client.table("unavailability").insert(
+        {"date": entry_date, "user_id": user_id, "name": name}
+    ).execute()
+
+
+def delete_unavailability(client, entry_id: int):
+    """Entfernt die eigene 'fix keine Zeit'-Markierung."""
+    client.table("unavailability").delete().eq("id", entry_id).execute()
+
+
 def remove_vote(client, activity_id: int, voter_id: str):
     """Nimmt die eigene Stimme wieder zurück."""
     client.table("activity_votes").delete().eq("activity_id", activity_id).eq(
