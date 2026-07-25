@@ -508,7 +508,7 @@ if st.session_state.selected_date:
 
     if is_unavailable:
         if st.button(
-            "Fix keine Zeit – hier klicken zum Zurücknehmen",
+            "Fix keine Zeit :( – hier klicken zum Zurücknehmen",
             use_container_width=True,
             type="secondary",
             key="fix_keine_zeit_aktiv",
@@ -517,7 +517,7 @@ if st.session_state.selected_date:
             st.rerun()
     else:
         if st.button(
-            "Ich habe fix keine Zeit 😕",
+            "Ich habe fix keine Zeit :(",
             use_container_width=True,
             type="secondary",
             key="fix_keine_zeit",
